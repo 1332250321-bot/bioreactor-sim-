@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PHB Bioreactor Simulator</title>
+<style>
+:root{
+  --petrol:#173C36; --petrol-2:#0E2521; --amber:#C98A3E; --paper:#F2EFE6;
+  --ink:#1C2220; --sage:#6FA98A; --alert:#B5473A; --line:#D8D2C2;
+  --card:#FFFFFF;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#12181A; --ink:#EAE7DD; --card:#1B2422; --line:#2B3634; --petrol:#3E8C7C;
+  }
+}
+:root[data-theme="dark"]{ --paper:#12181A; --ink:#EAE7DD; --card:#1B2422; --line:#2B3634; --petrol:#3E8C7C; }
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'IBM Plex Mono',ui-monospace,monospace;line-height:1.45}
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+h1,h2,.disp{font-family:'Space Grotesk',sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+header{border-bottom:2px solid var(--petrol);padding-bottom:18px;margin-bottom:22px}
+h1{font-size:clamp(24px,4vw,34px);margin:0 0 6px;font-weight:700;color:var(--petrol)}
+:root[data-theme="dark"] h1{color:var(--sage)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) h1{color:var(--sage)}}
+.tag{color:var(--amber);font-weight:600;font-size:13px;letter-spacing:.02em}
+.specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:16px;font-size:13px}
+.spec{border-left:3px solid var(--amber);padding:4px 0 4px 10px}
+.spec b{display:block;font-family:'Space Grotesk',sans-serif;font-size:14px}
+.grid{display:grid;grid-template-columns:280px 1fr;gap:20px}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px}
+.panel h2{font-size:15px;margin:0 0 14px;color:var(--petrol)}
+:root[data-theme="dark"] .panel h2{color:var(--sage)}
+label{display:block;font-size:12px;margin:14px 0 4px;display:flex;justify-content:space-between}
+label span.v{color:var(--amber);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--amber)}
+select{width:100%;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:6px;font-family:inherit;font-size:13px}
+button{margin-top:18px;width:100%;background:var(--petrol);color:#fff;border:none;border-radius:6px;padding:11px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;cursor:pointer;transition:opacity .15s}
+button:hover{opacity:.88}
+button.secondary{background:transparent;border:1px solid var(--line);color:var(--ink);margin-top:8px}
+.readouts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
+.ro{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.ro .l{font-size:10px;opacity:.65}
+.ro .n{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600}
+#chartCard{margin-top:20px}
+canvas{width:100%;height:340px;display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:3px;display:inline-block;border-radius:2px}
+.note{font-size:11px;opacity:.6;margin-top:14px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="tag">PROJECT · STEP 2</div>
+  <h1>PHB Bioreactor Simulator</h1>
+  <div style="font-size:13px">A fed-batch process for microbial bioplastic production.</div>
+  <div class="specs">
+    <div class="spec"><b>Reactor</b>Fed-batch stirred-tank (STR)</div>
+    <div class="spec"><b>Process</b>Aerobic fed-batch fermentation</div>
+    <div class="spec"><b>Bioprocess</b>Nitrogen-limited PHB accumulation</div>
+    <div class="spec"><b>Product</b>Polyhydroxybutyrate (PHB) bioplastic</div>
+    <div class="spec"><b>Organism</b><i>Cupriavidus necator</i></div>
+  </div>
+</header>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Operating parameters</h2>
+    <label>Temperature <span class="v" id="tempV">30 °C</span></label>
+    <input type="range" id="temp" min="20" max="40" value="30" step="0.5">
+    <label>Agitation <span class="v" id="agV">400 rpm</span></label>
+    <input type="range" id="ag" min="100" max="800" value="400" step="10">
+    <label>Aeration <span class="v" id="airV">0.8 vvm</span></label>
+    <input type="range" id="air" min="0.1" max="2" value="0.8" step="0.05">
+    <label>Glucose feed (fed-batch) <span class="v" id="feedV">3.0 g/L/h</span></label>
+    <input type="range" id="feed" min="0" max="8" value="3" step="0.2">
+    <label>N-limitation onset <span class="v" id="nV">12 h</span></label>
+    <input type="range" id="ntime" min="4" max="24" value="12" step="1">
+    <label>Run time <span class="v" id="durV">48 h</span></label>
+    <input type="range" id="dur" min="12" max="72" value="48" step="2">
+    <button id="run">Run simulation</button>
+    <button id="reset" class="secondary">Reset defaults</button>
+
+    <div class="readouts">
+      <div class="ro"><div class="l">FINAL BIOMASS</div><div class="n" id="rX">–</div></div>
+      <div class="ro"><div class="l">FINAL PHB TITER</div><div class="n" id="rP">–</div></div>
+      <div class="ro"><div class="l">PHB CONTENT</div><div class="n" id="rC">–</div></div>
+      <div class="ro"><div class="l">PEAK DO</div><div class="n" id="rD">–</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="chartCard">
+    <h2>Batch profile</h2>
+    <canvas id="chart"></canvas>
+    <div class="legend">
+      <span><i class="sw" style="background:#3E8C7C"></i>Biomass (g/L)</span>
+      <span><i class="sw" style="background:#C98A3E"></i>Glucose (g/L)</span>
+      <span><i class="sw" style="background:#B5473A"></i>PHB (g/L)</span>
+      <span><i class="sw" style="background:#8892A6"></i>Dissolved O₂ (%)</span>
+    </div>
+    <div class="note">Illustrative Monod / Luedeking–Piret-type model: growth on glucose halts once nitrogen is depleted at the chosen onset time, after which excess carbon (from feed) is diverted to intracellular PHB granule synthesis, capped near 75% of dry cell weight. DO is a simplified function of agitation, aeration and oxygen demand — for engineering intuition, not process validation.</div>
+  </div>
+</div>
+</div>
+
+<script>
+const els = ['temp','ag','air','feed','ntime','dur'].reduce((o,id)=>(o[id]=document.getElementById(id),o),{});
+const labelMap = {temp:['tempV',' °C'],ag:['agV',' rpm'],air:['airV',' vvm'],feed:['feedV',' g/L/h'],ntime:['nV',' h'],dur:['durV',' h']};
+Object.keys(els).forEach(id=>{
+  els[id].addEventListener('input',()=>{
+    const [lid,suf] = labelMap[id];
+    document.getElementById(lid).textContent = els[id].value + suf;
+    run();
+  });
+});
+document.getElementById('reset').onclick = ()=>{
+  const d = {temp:30,ag:400,air:0.8,feed:3,ntime:12,dur:48};
+  Object.keys(d).forEach(id=>{els[id].value=d[id]; els[id].dispatchEvent(new Event('input'));});
+};
+
+function simulate(p){
+  const dt=0.1, steps=Math.round(p.dur/dt);
+  let X=0.2, S=20, P=0, t=0;
+  const Topt=30, temp_eff = Math.max(0.05, 1-Math.pow((p.temp-Topt)/12,2));
+  const kLa = 2 + (p.ag/800)*8 + (p.air/2)*6;
+  const muMax=0.35*temp_eff, Ks=0.5, Yxs=0.45, qpMax=0.12, KsP=1, maxFrac=0.75;
+  const data={t:[],X:[],S:[],P:[],DO:[]};
+  for(let i=0;i<=steps;i++){
+    t=i*dt;
+    const nLimited = t>=p.ntime;
+    const mu = nLimited? 0.01*muMax : muMax*(S/(Ks+S));
+    const dX = mu*X*dt;
+    let qp = 0;
+    if(nLimited){
+      const frac = P/(X+P+1e-6);
+      qp = qpMax*(S/(KsP+S))*Math.max(0,(maxFrac-frac)/maxFrac);
+    }
+    const dP = qp*X*dt;
+    const feedIn = nLimited ? p.feed*dt : p.feed*0.4*dt;
+    const dS = feedIn - (dX/Yxs) - (dP/0.9);
+    X=Math.max(0,X+dX); P=Math.max(0,P+dP); S=Math.max(0,S+dS);
+    const OUR = 0.4*mu*X + 0.05*qp*X;
+    const DO = Math.max(0, Math.min(100, 100 - (OUR/kLa)*260));
+    data.t.push(t); data.X.push(X); data.S.push(S); data.P.push(P); data.DO.push(DO);
+  }
+  return data;
+}
+
+function draw(data){
+  const c=document.getElementById('chart');
+  const dpr=window.devicePixelRatio||1;
+  const w=c.clientWidth, h=340;
+  c.width=w*dpr; c.height=h*dpr;
+  const ctx=c.getContext('2d'); ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,h);
+  const pad={l:38,r:10,t:14,b:26};
+  const plotW=w-pad.l-pad.r, plotH=h-pad.t-pad.b;
+  const maxL = Math.max(...data.X, ...data.S, ...data.P, 1)*1.15;
+  const maxT = data.t[data.t.length-1];
+  ctx.strokeStyle='#D8D2C2'; ctx.lineWidth=1; ctx.font='10px IBM Plex Mono';
+  ctx.fillStyle=getComputedStyle(document.body).color;
+  for(let g=0;g<=4;g++){
+    const y=pad.t+plotH-(g/4)*plotH;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.globalAlpha=0.25;ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillText((maxL*g/4).toFixed(0), 4, y+3);
+  }
+  function plot(arr,color,scaleMax){
+    ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=2;
+    arr.forEach((v,i)=>{
+      const x=pad.l+(data.t[i]/maxT)*plotW;
+      const y=pad.t+plotH-(v/scaleMax)*plotH;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }
+  plot(data.X,'#3E8C7C',maxL);
+  plot(data.S,'#C98A3E',maxL);
+  plot(data.P,'#B5473A',maxL);
+  plot(data.DO,'#8892A6',100);
+  ctx.fillStyle=getComputedStyle(document.body).color; ctx.globalAlpha=0.7;
+  for(let g=0;g<=4;g++){
+    const x=pad.l+(g/4)*plotW;
+    ctx.fillText((maxT*g/4).toFixed(0)+'h', x-8, h-6);
+  }
+  ctx.globalAlpha=1;
+}
+
+function run(){
+  const p = {
+    temp:+els.temp.value, ag:+els.ag.value, air:+els.air.value,
+    feed:+els.feed.value, ntime:+els.ntime.value, dur:+els.dur.value
+  };
+  const data = simulate(p);
+  draw(data);
+  const n=data.X.length-1;
+  document.getElementById('rX').textContent = data.X[n].toFixed(2)+' g/L';
+  document.getElementById('rP').textContent = data.P[n].toFixed(2)+' g/L';
+  document.getElementById('rC').textContent = (100*data.P[n]/(data.X[n]+data.P[n])).toFixed(0)+' % DCW';
+  document.getElementById('rD').textContent = Math.max(...data.DO).toFixed(0)+' %';
+}
+document.getElementById('run').onclick = run;
+window.addEventListener('resize', run);
+window.addEventListener('load', run);
+run();
+</script>
+</body>
+</html>
